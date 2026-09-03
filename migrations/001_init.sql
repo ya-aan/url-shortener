@@ -1,0 +1,5 @@
+CREATE TABLE urls (
+    id BIGSERIAL PRIMARY KEY,
+    url TEXT NOT NULL,
+    alias TEXT NOT NULL UNIQUE
+);

@@ -5,10 +5,13 @@ import (
 	"errors"
 	"math/rand"
 	"net/url"
+
+	"github.com/ya-aan/url-shortener/internal/storage"
 )
 
 var ErrAliasExists = errors.New("alias already exists")
 var ErrInvalidURL = errors.New("invalid url")
+var ErrNotFound = errors.New("url not found")
 
 type URLStorage interface {
 	SaveURL(ctx context.Context, url, alias string) (int64, error)
@@ -32,11 +35,11 @@ func (s *Service) CreateURL(
 	ctx context.Context,
 	rawURL string,
 	alias string,
-) (int64, error) {
+) (int64, string, error) {
 
 	parsedURL, err := url.ParseRequestURI(rawURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return 0, ErrInvalidURL
+		return 0, "", ErrInvalidURL
 	}
 
 	if alias == "" {
@@ -45,23 +48,28 @@ func (s *Service) CreateURL(
 
 	exists, err := s.storage.AliasExists(ctx, alias)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
 	if exists {
-		return 0, ErrAliasExists
+		return 0, "", ErrAliasExists
 	}
 
 	id, err := s.storage.SaveURL(ctx, rawURL, alias)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 
-	return id, nil
+	return id, alias, nil
+
 }
 
 func (s *Service) GetURL(ctx context.Context, alias string) (string, error) {
 	url, err := s.storage.GetURLByAlias(ctx, alias)
+	if errors.Is(err, storage.ErrNotFound) {
+		return "", ErrNotFound
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -70,7 +78,12 @@ func (s *Service) GetURL(ctx context.Context, alias string) (string, error) {
 }
 
 func (s *Service) DeleteURL(ctx context.Context, alias string) error {
-	return s.storage.DeleteURL(ctx, alias)
+	err := s.storage.DeleteURL(ctx, alias)
+
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (s *Service) UpdateURL(
@@ -78,7 +91,18 @@ func (s *Service) UpdateURL(
 	alias string,
 	newURL string,
 ) error {
-	return s.storage.UpdateURL(ctx, alias, newURL)
+	parsedURL, err := url.ParseRequestURI(newURL)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return ErrInvalidURL
+	}
+
+	err = s.storage.UpdateURL(ctx, alias, newURL)
+
+	if errors.Is(err, storage.ErrNotFound) {
+		return ErrNotFound
+	}
+
+	return err
 }
 
 func generateAlias(length int) string {

@@ -53,7 +53,6 @@ func (s *Storage) AliasExists(ctx context.Context, alias string) (bool, error) {
 		`SELECT EXISTS(SELECT 1 FROM urls WHERE alias = $1)`,
 		alias,
 	).Scan(&exists)
-
 	if err != nil {
 		return false, fmt.Errorf("failed to check alias existence: %w", err)
 	}
@@ -62,22 +61,18 @@ func (s *Storage) AliasExists(ctx context.Context, alias string) (bool, error) {
 
 func (s *Storage) GetURLByAlias(ctx context.Context, alias string) (string, error) {
 	var url string
-
 	err := s.db.QueryRow(
 		ctx,
 		`SELECT url FROM urls WHERE alias = $1`,
 		alias,
 	).Scan(&url)
-
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", storage.ErrNotFound
 	}
-
 	if err != nil {
 
 		return "", fmt.Errorf("failed to get url by alias: %w", err)
 	}
-
 	return url, nil
 }
 

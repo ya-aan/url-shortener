@@ -14,5 +14,6 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 COPY --from=builder /app/url-shortener .
+COPY --from=builder /app/config ./config
 
 CMD ["./url-shortener"]

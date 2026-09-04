@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 
+	"github.com/ya-aan/url-shortener/internal/config"
 	"github.com/ya-aan/url-shortener/internal/http-server/handlers"
 	"github.com/ya-aan/url-shortener/internal/http-server/middleware"
 	"github.com/ya-aan/url-shortener/internal/service"
@@ -18,7 +19,7 @@ import (
 
 func main() {
 	_ = godotenv.Load()
-
+	cfg := config.MustLoad()
 	ctx := context.Background()
 
 	connectionString := fmt.Sprintf(
@@ -50,7 +51,7 @@ func main() {
 	})
 	router.Get("/{alias}", handlers.Redirect(urlService))
 
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	if err := http.ListenAndServe(cfg.HTTPServer.Address, router); err != nil {
 		log.Fatal(err)
 	}
 }

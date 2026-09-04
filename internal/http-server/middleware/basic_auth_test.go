@@ -10,8 +10,12 @@ import (
 )
 
 func TestBasicAuth_Unauthorized(t *testing.T) {
-	username := "test"
-	password := "test"
+	if err := godotenv.Load("../../../.env"); err != nil {
+		t.Fatal("failed to load .env")
+	}
+
+	username := os.Getenv("HTTP_SERVER_USER")
+	password := os.Getenv("HTTP_SERVER_PASSWORD")
 
 	handler := BasicAuth(username, password)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

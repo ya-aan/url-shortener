@@ -35,6 +35,14 @@ func Update(urlService UpdateService) http.HandlerFunc {
 
 		err := urlService.UpdateURL(r.Context(), alias, req.URL)
 
+		if errors.Is(err, service.ErrInvalidAlias) {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, map[string]string{
+				"error": "invalid alias",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrInvalidURL) {
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, map[string]string{

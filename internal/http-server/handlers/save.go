@@ -48,6 +48,14 @@ func Save(urlService URLService) http.HandlerFunc {
 			return
 		}
 
+		if errors.Is(err, service.ErrInvalidAlias) {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, map[string]string{
+				"error": "invalid alias",
+			})
+			return
+		}
+
 		if errors.Is(err, service.ErrAliasExists) {
 			render.Status(r, http.StatusConflict)
 			render.JSON(w, r, map[string]string{

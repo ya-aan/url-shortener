@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ya-aan/url-shortener/internal/storage"
 )
@@ -30,6 +31,10 @@ func New(ctx context.Context, connectionString string) (*Storage, error) {
 	}, nil
 }
 
+func (s *Storage) Close() {
+	s.db.Close()
+}
+
 func (s *Storage) SaveURL(ctx context.Context, url, alias string) (int64, error) {
 	var id int64
 	err := s.db.QueryRow(
@@ -39,24 +44,16 @@ func (s *Storage) SaveURL(ctx context.Context, url, alias string) (int64, error)
 		alias,
 	).Scan(&id)
 
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "urls_alias_key" {
+		return 0, storage.ErrAliasExists
+	}
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to save url: %w", err)
 	}
 
 	return id, nil
-}
-
-func (s *Storage) AliasExists(ctx context.Context, alias string) (bool, error) {
-	var exists bool
-	err := s.db.QueryRow(
-		ctx,
-		`SELECT EXISTS(SELECT 1 FROM urls WHERE alias = $1)`,
-		alias,
-	).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("failed to check alias existence: %w", err)
-	}
-	return exists, nil
 }
 
 func (s *Storage) GetURLByAlias(ctx context.Context, alias string) (string, error) {

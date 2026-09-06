@@ -18,18 +18,18 @@ func Delete(urlService DeleteService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		alias := chi.URLParam(r, "alias")
 		err := urlService.DeleteURL(r.Context(), alias)
-		if errors.Is(err, service.ErrNotFound) {
-			render.Status(r, http.StatusNotFound)
+		if errors.Is(err, service.ErrInvalidAlias) {
+			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, map[string]string{
-				"error": "url not found",
+				"error": "invalid alias",
 			})
 			return
 		}
 
-		if err != nil {
-			render.Status(r, http.StatusInternalServerError)
+		if errors.Is(err, service.ErrNotFound) {
+			render.Status(r, http.StatusNotFound)
 			render.JSON(w, r, map[string]string{
-				"error": "internal error",
+				"error": "url not found",
 			})
 			return
 		}

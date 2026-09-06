@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
@@ -18,9 +23,16 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	_ = godotenv.Load()
 	cfg := config.MustLoad()
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	connectionString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
@@ -33,8 +45,9 @@ func main() {
 
 	storage, err := postgres.New(ctx, connectionString)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	defer storage.Close()
 
 	urlService := service.New(storage)
 
@@ -51,7 +64,41 @@ func main() {
 	})
 	router.Get("/{alias}", handlers.Redirect(urlService))
 
-	if err := http.ListenAndServe(cfg.HTTPServer.Address, router); err != nil {
-		log.Fatal(err)
+	server := &http.Server{
+		Addr:              cfg.HTTPServer.Address,
+		Handler:           router,
+		ReadTimeout:       cfg.HTTPServer.Timeout,
+		ReadHeaderTimeout: cfg.HTTPServer.Timeout,
+		WriteTimeout:      cfg.HTTPServer.Timeout,
+		IdleTimeout:       cfg.HTTPServer.IdleTimeout,
+	}
+
+	return serve(ctx, server)
+}
+
+func serve(ctx context.Context, server *http.Server) error {
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			_ = server.Close()
+			return fmt.Errorf("failed to shut down HTTP server: %w", err)
+		}
+
+		if err := <-serverErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
 	}
 }

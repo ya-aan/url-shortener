@@ -19,6 +19,11 @@ func Redirect(urlService RedirectService) http.HandlerFunc {
 
 		url, err := urlService.GetURL(r.Context(), alias)
 
+		if errors.Is(err, service.ErrInvalidAlias) {
+			http.Error(w, "invalid alias", http.StatusBadRequest)
+			return
+		}
+
 		if errors.Is(err, service.ErrNotFound) {
 			http.Error(w, "url not found", http.StatusNotFound)
 			return

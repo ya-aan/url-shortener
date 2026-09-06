@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"net/url"
 
+	"regexp"
+
 	"github.com/ya-aan/url-shortener/internal/storage"
 )
 
@@ -13,9 +15,12 @@ var ErrAliasExists = errors.New("alias already exists")
 var ErrInvalidURL = errors.New("invalid url")
 var ErrNotFound = errors.New("url not found")
 
+var ErrInvalidAlias = errors.New("invalid alias")
+
+var aliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
 type URLStorage interface {
 	SaveURL(ctx context.Context, url, alias string) (int64, error)
-	AliasExists(ctx context.Context, alias string) (bool, error)
 	GetURLByAlias(ctx context.Context, alias string) (string, error)
 	DeleteURL(ctx context.Context, alias string) error
 	UpdateURL(ctx context.Context, alias, newURL string) error
@@ -46,16 +51,13 @@ func (s *Service) CreateURL(
 		alias = generateAlias(6)
 	}
 
-	exists, err := s.storage.AliasExists(ctx, alias)
-	if err != nil {
-		return 0, "", err
+	if !aliasPattern.MatchString(alias) {
+		return 0, "", ErrInvalidAlias
 	}
-
-	if exists {
+	id, err := s.storage.SaveURL(ctx, rawURL, alias)
+	if errors.Is(err, storage.ErrAliasExists) {
 		return 0, "", ErrAliasExists
 	}
-
-	id, err := s.storage.SaveURL(ctx, rawURL, alias)
 	if err != nil {
 		return 0, "", err
 	}
@@ -65,6 +67,10 @@ func (s *Service) CreateURL(
 }
 
 func (s *Service) GetURL(ctx context.Context, alias string) (string, error) {
+	if !aliasPattern.MatchString(alias) {
+		return "", ErrInvalidAlias
+	}
+
 	url, err := s.storage.GetURLByAlias(ctx, alias)
 	if errors.Is(err, storage.ErrNotFound) {
 		return "", ErrNotFound
@@ -78,6 +84,10 @@ func (s *Service) GetURL(ctx context.Context, alias string) (string, error) {
 }
 
 func (s *Service) DeleteURL(ctx context.Context, alias string) error {
+	if !aliasPattern.MatchString(alias) {
+		return ErrInvalidAlias
+	}
+
 	err := s.storage.DeleteURL(ctx, alias)
 
 	if errors.Is(err, storage.ErrNotFound) {
@@ -91,6 +101,10 @@ func (s *Service) UpdateURL(
 	alias string,
 	newURL string,
 ) error {
+	if !aliasPattern.MatchString(alias) {
+		return ErrInvalidAlias
+	}
+
 	parsedURL, err := url.ParseRequestURI(newURL)
 	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 		return ErrInvalidURL

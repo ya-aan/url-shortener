@@ -3,19 +3,12 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
-
-	"github.com/joho/godotenv"
 )
 
 func TestBasicAuth_Unauthorized(t *testing.T) {
-	if err := godotenv.Load("../../../.env"); err != nil {
-		t.Fatal("failed to load .env")
-	}
-
-	username := os.Getenv("HTTP_SERVER_USER")
-	password := os.Getenv("HTTP_SERVER_PASSWORD")
+	username := "test-user"
+	password := "test-password"
 
 	handler := BasicAuth(username, password)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,12 +31,8 @@ func TestBasicAuth_Unauthorized(t *testing.T) {
 }
 
 func TestBasicAuth_Success(t *testing.T) {
-	if err := godotenv.Load("../../../.env"); err != nil {
-		t.Fatal("failed to load .env")
-	}
-
-	username := os.Getenv("HTTP_SERVER_USER")
-	password := os.Getenv("HTTP_SERVER_PASSWORD")
+	username := "test-user"
+	password := "test-password"
 
 	handler := BasicAuth(username, password)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
